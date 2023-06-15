@@ -1,7 +1,7 @@
-import { AbstractProvider } from "./abstract-provider.js";
-import { Network } from "./network.js";
-import type { PerformActionRequest } from "./abstract-provider.js";
-import type { Networkish } from "./network.js";
+import { AbstractProvider } from './abstract-provider.js';
+import { Network } from './network.js';
+import type { PerformActionRequest } from './abstract-provider.js';
+import type { Networkish } from './network.js';
 /**
  *  A configuration entry for how to use a [[Provider]].
  */
