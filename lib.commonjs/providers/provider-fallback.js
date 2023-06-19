@@ -223,6 +223,7 @@ class FallbackProvider extends abstract_provider_js_1.AbstractProvider {
      *  @_ignore:
      */
     eventWorkers;
+    pollingInterval;
     #configs;
     #height;
     #initialSyncPromise;
@@ -233,7 +234,7 @@ class FallbackProvider extends abstract_provider_js_1.AbstractProvider {
      *  If a [[Provider]] is included in %%providers%%, defaults are used
      *  for the configuration.
      */
-    constructor(providers, network) {
+    constructor(providers, network, options) {
         super(network);
         this.#configs = providers.map((p) => {
             if (p instanceof abstract_provider_js_1.AbstractProvider) {
@@ -245,9 +246,10 @@ class FallbackProvider extends abstract_provider_js_1.AbstractProvider {
         });
         this.#height = -2;
         this.#initialSyncPromise = null;
-        this.quorum = 2; //Math.ceil(providers.length /  2);
-        this.eventQuorum = 1;
-        this.eventWorkers = 1;
+        this.quorum = options?.quorum ?? 2; //Math.ceil(providers.length /  2);
+        this.eventQuorum = options?.eventQuorum ?? 1;
+        this.eventWorkers = options?.eventWorkers ?? 1;
+        this.pollingInterval = options?.pollingInterval ?? 400;
         (0, index_js_1.assertArgument)(this.quorum <= this.#configs.reduce((a, c) => (a + c.weight), 0), "quorum exceed provider wieght", "quorum", this.quorum);
     }
     get providerConfigs() {
@@ -265,9 +267,11 @@ class FallbackProvider extends abstract_provider_js_1.AbstractProvider {
         return network_js_1.Network.from((0, index_js_1.getBigInt)(await this._perform({ method: "chainId" })));
     }
     // @TODO: Add support to select providers to be the event subscriber
-    //_getSubscriber(sub: Subscription): Subscriber {
-    //    throw new Error("@TODO");
-    //}
+    _getSubscriber(sub) {
+        const subscriber = super._getSubscriber(sub);
+        subscriber.pollingInterval = this.pollingInterval;
+        return subscriber;
+    }
     /**
      *  Transforms a %%req%% into the correct method call on %%provider%%.
      */
@@ -307,6 +311,9 @@ class FallbackProvider extends abstract_provider_js_1.AbstractProvider {
                 return await provider.getTransactionResult(req.hash);
         }
     }
+    #sortConfigsByAscendingPriority(configs) {
+        configs.sort((a, b) => a.priority - b.priority);
+    }
     // Grab the next (random) config that is not already part of
     // the running set
     #getNextConfig(running) {
@@ -317,7 +324,7 @@ class FallbackProvider extends abstract_provider_js_1.AbstractProvider {
         // Shuffle the states, sorted by priority
         const allConfigs = this.#configs.slice();
         shuffle(allConfigs);
-        allConfigs.sort((a, b) => (b.priority - a.priority));
+        this.#sortConfigsByAscendingPriority(allConfigs);
         for (const config of allConfigs) {
             if (config._lastFatalError) {
                 continue;
